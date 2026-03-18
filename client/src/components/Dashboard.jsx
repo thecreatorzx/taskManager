@@ -1,39 +1,67 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { FaPlus, FaTrash, FaCheckCircle, FaRegCircle } from 'react-icons/fa';
+import api from '../api/axios';
 
 const Dashboard = () => {
-  const [tasks, setTasks] = useState([
-    { id: 1, task: "Finish landing page design", completed: false },
-    { id: 2, task: "Integrate Firebase Auth", completed: true },
-    { id: 3, task: "Setup TaskMaster API", completed: false },
-    { id: 4, task: "Review team pull requests", completed: true },
-    { id: 5, task: "Update project documentation", completed: false },
-    { id: 6, task: "Schedule weekly sync meeting", completed: false },
-    { id: 7, task: "Fix navigation bug on mobile", completed: true },
-    { id: 8, task: "Research competitor features", completed: false },
-    { id: 9, task: "Prepare monthly analytics report", completed: false },
-    { id: 10, task: "Optimize database queries", completed: false },
-    { id: 11, task: "Refactor SignUp component logic", completed: true }
-  ]);
+  const [tasks, setTasks] = useState([]);
   const [inputValue, setInputValue] = useState("");
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState("")
 
-  const addTask = (e) => {
+  // fetch all tasks on mount
+  useEffect(() => {
+    const fetchTasks = async () => {
+      try {
+        const res = await api.get('/tasks')
+        setTasks(res.data)
+      } catch (err) {
+        setError("Failed to load tasks")
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchTasks()
+  }, [])
+
+  const addTask = async (e) => {
     e.preventDefault();
     if (!inputValue.trim()) return;
-    setTasks([...tasks, { id: Date.now(), task: inputValue, completed: false }]);
-    setInputValue("");
+    try {
+      const res = await api.post('/tasks', { task: inputValue })
+      setTasks([...tasks, res.data])
+      setInputValue("");
+    } catch (err) {
+      setError("Failed to add task")
+    }
   };
 
-  const toggleTask = (id) => {
-    setTasks(tasks.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
+  const toggleTask = async (id, completed) => {
+    try {
+      const res = await api.put(`/tasks/${id}`, { status: completed ? "pending" : "completed" })
+      setTasks(tasks.map(t => t.id === id ? res.data : t))
+    } catch (err) {
+      setError("Failed to update task")
+    }
   };
 
-  const deleteTask = (id) => {
-    setTasks(tasks.filter(t => t.id !== id));
+  const deleteTask = async (id) => {
+    try {
+      await api.delete(`/tasks/${id}`)
+      setTasks(tasks.filter(t => t.id !== id))
+    } catch (err) {
+      setError("Failed to delete task")
+    }
   };
 
-  const progress = tasks.length > 0 ? (tasks.filter(t => t.completed).length / tasks.length) * 100 : 0;
+  const progress = tasks.length > 0 
+    ? (tasks.filter(t => t.status === "completed").length / tasks.length) * 100 
+    : 0;
 
+  if (loading) return (
+    <div className='w-full min-h-[calc(100vh-80px)] bg-slate-50 flex items-center justify-center'>
+      <p className='text-slate-400 text-lg font-medium'>Loading tasks...</p>
+    </div>
+  )
   return (
     <div className='w-full min-h-[calc(100vh-80px)] bg-slate-50 p-6 md:p-10 overflow-y-auto'>
       <div className='max-w-4xl mx-auto'>
@@ -42,19 +70,23 @@ const Dashboard = () => {
         <div className='flex justify-between items-end mb-8'>
           <div>
             <h1 className='text-3xl font-black text-gray-800'>My Tasks</h1>
-            <p className='text-slate-500 font-medium'>You have {tasks.filter(t => !t.completed).length} tasks remaining</p>
+            <p className='text-slate-500 font-medium'>
+              You have {tasks.filter(t => t.status !== "completed").length} tasks remaining
+            </p>
           </div>
           <div className='text-right hidden sm:block'>
             <span className='text-xs font-bold uppercase tracking-widest text-sky-600'>Daily Progress</span>
             <div className='w-40 h-2 bg-slate-200 rounded-full mt-1 overflow-hidden shadow-inner'>
-               <div 
+              <div 
                 className='h-full bg-sky-500 transition-all duration-700 ease-out' 
                 style={{ width: `${progress}%` }}
-               ></div>
+              ></div>
             </div>
             <span className='text-[10px] text-slate-400 font-bold'>{Math.round(progress)}% Complete</span>
           </div>
         </div>
+
+        {error && <p className='text-red-500 text-sm mb-4 text-center'>{error}</p>}
 
         {/* Input Area */}
         <form onSubmit={addTask} className='relative mb-10 group'>
@@ -74,21 +106,25 @@ const Dashboard = () => {
         <div className='flex flex-col gap-3 pb-20'>
           {tasks.map((item) => (
             <div key={item.id} className='group flex items-center justify-between p-5 bg-white rounded-2xl shadow-sm border border-slate-100 hover:shadow-md hover:border-sky-100 transition-all'>
-              <div className='flex items-center gap-4 cursor-pointer flex-1' onClick={() => toggleTask(item.id)}>
+              <div 
+                className='flex items-center gap-4 cursor-pointer flex-1' 
+                onClick={() => toggleTask(item.id, item.status === "completed")}
+              >
                 <div className='transition-transform duration-200 group-active:scale-90'>
-                  {item.completed ? 
+                  {item.status === "completed" ? 
                     <FaCheckCircle className="text-emerald-500 text-2xl" /> : 
                     <FaRegCircle className="text-slate-300 text-2xl group-hover:text-sky-400" />
                   }
                 </div>
-                <span className={`text-lg font-medium transition-all duration-300 ${item.completed ? 'text-slate-400 line-through' : 'text-slate-700'}`}>
+                <span className={`text-lg font-medium transition-all duration-300 ${
+                  item.status === "completed" ? 'text-slate-400 line-through' : 'text-slate-700'
+                }`}>
                   {item.task}
                 </span>
               </div>
               <button 
                 onClick={() => deleteTask(item.id)} 
                 className='p-2 text-slate-200 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all transform hover:scale-110'
-                title="Delete Task"
               >
                 <FaTrash size={16} />
               </button>
@@ -100,7 +136,6 @@ const Dashboard = () => {
             </div>
           )}
         </div>
-        
       </div>
     </div>
   );

@@ -2,9 +2,22 @@ import { Router, Request, Response } from "express";
 import bcyrpt from 'bcrypt'
 import jwt from 'jsonwebtoken'
 import prisma from '../lib/prisma'
+import { authMiddleware, AuthRequest } from "../middleware/auth";
 
 const router = Router()
-
+// GET /auth/me — verify JWT and return current user
+router.get('/me', authMiddleware, async (req:AuthRequest, res:Response) => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: req.user!.userId },
+      select: { id: true, name: true, email: true, username: true }
+      // never return password
+    })
+    res.json(user)
+  } catch (err) {
+    res.status(401).json({ error: 'Not authenticated' })
+  }
+})
 router.post('/register', async (req: Request, res: Response) => {
   try {
     const {name , email, username, password} = req.body
