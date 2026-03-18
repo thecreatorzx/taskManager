@@ -2,10 +2,6 @@
 
 A full-stack task management application with JWT authentication, built from scratch.
 
-## Live Demo
-
-[Add link after deployment]
-
 ## Screenshots
 
 ![Dashboard image](./client/src/assets/dashboard2.png)
